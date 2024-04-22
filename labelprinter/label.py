@@ -7,7 +7,7 @@ import datetime, cgi, os, tempfile
 from reportlab.graphics.barcode.code128 import Code128
 
 from threading import Thread
-
+import subprocess
 try:
     from html import escape
 except ImportError:
@@ -31,14 +31,16 @@ def print_ps_file(psfilePath = psfilePath, printerDevice=printerDevice):
     command = """
     cat %s |\
     gs -q -dBATCH -dPARANOIDSAFER -dQUIET -dNOPAUSE -sDEVICE=cups  -r300x300 -sOutputFile=- - 2> /dev/null |\
-    rastertoptch dummyjob dummyuser dummytitle 1 'Align=Right BytesPerLine=90 PixelXfer=ULP PrintQuality=High PrintDensity=0 SoftwareMirror LabelPreamble';
+    rastertoptch 'Align=Right BytesPerLine=90 PixelXfer=ULP PrintQuality=High PrintDensity=0 SoftwareMirror LabelPreamble';
     """ % (psfilePath,)
-    (stdin, stdout, stderr) = os.popen3(command)
-    rawdata = stdout.read()
-    rawdata = rawdata[:-1] + '\x1a\x1b\x40'
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    #(stdin, stdout, stderr) = os.popen3(command)
+    rawdata = stdout
+    rawdata = rawdata[:-1] + b'\x1a\x1b\x40'
     printerDevice = checkPrinter()
     if printerDevice:
-        fh = open(printerDevice,'w')
+        fh = open(printerDevice,'wb')
         if not debug_mode:
             fh.write(rawdata)
         fh.close()
@@ -47,7 +49,8 @@ def print_pdf_file(pdffilepath, printerDevice=printerDevice):
     (fd, filepath) = tempfile.mkstemp('mylabels.ps')
     os.system("pdf2ps '%s' '%s'" % (pdffilepath, filepath))
     print_ps_file(filepath, printerDevice=printerDevice)
-    os.unlink(filepath)
+    if not debug_mode:
+        os.unlink(filepath)
 
 styles = {}
 styles['title'] = ParagraphStyle(name='title',
